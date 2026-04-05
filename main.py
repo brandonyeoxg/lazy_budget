@@ -1,18 +1,29 @@
 import argparse
+import logging
+
+from datetime import datetime
+from pathlib import Path
 from monopoly.pdf import PdfDocument, PdfParser
 from monopoly.banks import BankDetector, banks
 from monopoly.generic import GenericBank
 from monopoly.pipeline import Pipeline
+from openpyxl import Workbook, load_workbook
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--file", help="bank statement in pdf")
-parser.add_argument("--folder", help="folder to process the entire statements")
+logging.basicConfig(
+    level=logging.DEBUG,
+)
+logger = logging.getLogger(__name__)
 
 
-def main():
-    args = parser.parse_args()
-    print(f"got file: {args.file}")
-    document = PdfDocument(file_path=args.file)
+class Sheet:
+    def __init__(self, title, columns, transactions):
+        self.title = title
+        self.columns = columns
+        self.transactions = transactions
+
+
+def get_statement_from_file(file_path: Path):
+    document = PdfDocument(file_path=file_path)
     document.unlock_document()
     detector = BankDetector(document)
     bank = detector.detect_bank(banks) or GenericBank
@@ -21,15 +32,40 @@ def main():
 
     statement = pipeline.extract(safety_check=False)
     transactions = pipeline.transform(statement)
-    pipeline.load(
-        transactions,
-        statement,
-        "./",
-        preserve_filename=True,
-    )
+    transactions_as_dict = [transaction.as_raw_dict() for transaction in transactions]
+    return statement
 
-    transaction_as_dict = [transaction.as_raw_dict() for transaction in transactions]
-    print(f"transactions: {transaction_as_dict}")
+
+def save_as_report(name, statements):
+    wb = Workbook()
+    ws = wb.active
+    for statement in statements:
+        ws.title = statement.statement_date.strftime("%b_%Y")
+        ws.append(statement.columns)
+        COLUMNS = [str(column) for column in statement.columns]
+        for transaction in statement.transactions:
+            d = transaction.as_raw_dict()
+            ws.append([d.get(c, "") for c in COLUMNS])
+    wb.save(name)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--report_name", help="name of the report")
+    parser.add_argument("--file", help="bank statement in pdf")
+    parser.add_argument("--folder", help="folder to process the entire statements")
+    args = parser.parse_args()
+    if args.file and args.folder:
+        logger.error("Both flags cannot be on at the same time")
+        return
+
+    if args.file:
+        statement = get_statement_from_file(args.file)
+        name = datetime.now().strftime("report_%d-%m-%Y_%H-%M-%S.xlsx")
+        if args.report_name:
+            name = args.report_name
+        save_as_report(name, [statement])
+        return
 
 
 if __name__ == "__main__":

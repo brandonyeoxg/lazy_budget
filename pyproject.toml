@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "monopoly-core[ocr]>=0.20.0",
+    "openpyxl>=3.1.5",
 ]
