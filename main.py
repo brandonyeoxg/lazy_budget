@@ -38,9 +38,10 @@ def get_statement_from_file(file_path: Path):
 
 def save_as_report(name, statements):
     wb = Workbook()
-    ws = wb.active
-    for statement in statements:
-        ws.title = statement.statement_date.strftime("%b_%Y")
+    wb.remove(wb.active)
+    for statement in sorted(statements, key=lambda s: s.statement_date):
+        title = statement.statement_date.strftime("%b_%Y")
+        ws = wb.create_sheet(title)
         ws.append(statement.columns)
         COLUMNS = [str(column) for column in statement.columns]
         for transaction in statement.transactions:
@@ -52,19 +53,24 @@ def save_as_report(name, statements):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--report_name", help="name of the report")
-    parser.add_argument("--file", help="bank statement in pdf")
+    parser.add_argument("--files", nargs="*", help="bank statement in pdf files")
     parser.add_argument("--folder", help="folder to process the entire statements")
     args = parser.parse_args()
-    if args.file and args.folder:
+    if args.files and args.folder:
         logger.error("Both flags cannot be on at the same time")
         return
 
-    if args.file:
-        statement = get_statement_from_file(args.file)
+    logger.debug(f"files {args.files}")
+    if args.files:
+        statements = list()
+        for file in args.files:
+            statements.append(get_statement_from_file(file))
+
+        logger.debug(f"statements: {statements}")
         name = datetime.now().strftime("report_%d-%m-%Y_%H-%M-%S.xlsx")
         if args.report_name:
             name = args.report_name
-        save_as_report(name, [statement])
+        save_as_report(name, statements)
         return
 
 
