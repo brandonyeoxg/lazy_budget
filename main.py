@@ -60,16 +60,22 @@ def main():
         logger.error("Both flags cannot be on at the same time")
         return
 
-    logger.debug(f"files {args.files}")
+    name = datetime.now().strftime("report_%d-%m-%Y_%H-%M-%S.xlsx")
+    if args.report_name:
+        name = args.report_name
+    statements = list()
+
     if args.files:
-        statements = list()
         for file in args.files:
             statements.append(get_statement_from_file(file))
+        save_as_report(name, statements)
+        return
 
-        logger.debug(f"statements: {statements}")
-        name = datetime.now().strftime("report_%d-%m-%Y_%H-%M-%S.xlsx")
-        if args.report_name:
-            name = args.report_name
+    if args.folder:
+        folder = Path(args.folder)
+        files = [f for f in folder.iterdir() if f.is_file()]
+        for file in files:
+            statements.append(get_statement_from_file(file))
         save_as_report(name, statements)
         return
 
